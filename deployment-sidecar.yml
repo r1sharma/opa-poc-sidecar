@@ -34,14 +34,14 @@ spec:
             httpGet:
               path: /health?plugins
               scheme: HTTP
-              port: 8282
+              port: 8181
             initialDelaySeconds: 5
             periodSeconds: 5
           readinessProbe:
             httpGet:
               path: /health?plugins
               scheme: HTTP
-              port: 8282
+              port: 8181
             initialDelaySeconds: 1
             periodSeconds: 3
       volumes:

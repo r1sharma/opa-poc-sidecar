@@ -33,9 +33,11 @@ spec:
             - "--server"
             - "--log-format=json-pretty"
             - "--set=decision_logs.console=true"
-            - "--set=services.nginx.url=http://bundle_server"
-            - "--set=bundles.nginx.service=nginx"
-            - "--set=bundles.nginx.resource=bundles/bundle.tar.gz"
+            - "--set=services.s3.url=https://opa-bundle-rest.s3.us-west-2.amazonaws.com"
+            - "--set=services.s3.credentials.s3_signing.web_identity_credentials.aws_region=us-west-2"
+            - "--set=services.s3.credentials.s3_signing.web_identity_credentials.session_name=open-policy-agent" 
+            - "--set=bundles.authz.service=s3"
+            - "--set=bundles.authz.resource=bundles/bundle.tar.gz"
           livenessProbe:
             httpGet:
               path: /health?plugins
@@ -50,22 +52,22 @@ spec:
               port: 8181
             initialDelaySeconds: 1
             periodSeconds: 3
-        - name: bundle_server
-          image: nginx:1.20.0-alpine
-          ports:
-            - containerPort: 8888
-          volumeMounts:
-            - readOnly: true
-              mountPath: /bundles
-              name: bundles 
+        # - name: bundle_server
+        #   image: nginx:1.20.0-alpine
+        #   ports:
+        #     - containerPort: 8888
+        #   volumeMounts:
+        #     - readOnly: true
+        #       mountPath: /bundles
+        #       name: bundles 
       volumes:
         - name: opa-config
           configMap:
             name: authz-policy
-        - name: bundles
-          hostPath:
-            path: /usr/share/nginx/html/bundles
-            type: Directory
+        # - name: bundles
+        #   hostPath:
+        #     path: /usr/share/nginx/html/bundles
+        #     type: Directory
 ---
 apiVersion: v1
 kind: Service

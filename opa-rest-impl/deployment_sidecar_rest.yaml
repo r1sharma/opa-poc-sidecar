@@ -1,0 +1,80 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: example-app
+  labels:
+    app: example-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-app
+  template:
+    metadata:
+      labels:
+        app: example-app
+    spec:
+      serviceAccountName: demo-sa
+      automountServiceAccountToken: true
+      containers:
+        - name: app
+          image: openpolicyagent/demo-restful-api:0.3
+          ports:
+            - containerPort: 5000
+          env:
+          - name: OPA_ADDR
+            value: "http://0.0.0.0:8181"
+          - name: POLICY_PATH
+            value: "/v1/data/httpapi/authz"    
+        - name: opa
+          image: openpolicyagent/opa:latest
+          args:
+            - "run"
+            - "--server"
+            - "--log-format=json-pretty"
+            - "--set=decision_logs.console=true"
+            - "--set=services.nginx.url=http://bundle_server"
+            - "--set=bundles.nginx.service=nginx"
+            - "--set=bundles.nginx.resource=bundles/bundle.tar.gz"
+          livenessProbe:
+            httpGet:
+              path: /health?plugins
+              scheme: HTTP
+              port: 8181
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health?plugins
+              scheme: HTTP
+              port: 8181
+            initialDelaySeconds: 1
+            periodSeconds: 3
+        - name: bundle_server
+          image: nginx:1.20.0-alpine
+          ports:
+            - containerPort: 8888
+          volumeMounts:
+            - readOnly: true
+              mountPath: /bundles
+              name: bundles 
+      volumes:
+        - name: opa-config
+          configMap:
+            name: authz-policy
+        - name: bundles
+          hostPath:
+            path: /usr/share/nginx/html/bundles
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-app
+spec:
+  selector:
+    app: example-app
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000

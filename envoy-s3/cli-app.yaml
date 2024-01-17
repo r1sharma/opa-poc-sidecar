@@ -1,0 +1,97 @@
+# app.yaml
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: cli-app
+  labels:
+    app: cli-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cli-app
+  template:
+    metadata:
+      labels:
+        app: cli-app
+    spec:
+      serviceAccountName: cli-test-sa
+      automountServiceAccountToken: true
+      initContainers:
+        - name: proxy-init
+          image: openpolicyagent/proxy_init:v8
+          # Configure the iptables bootstrap script to redirect traffic to the
+          # Envoy proxy on port 8000. Envoy will be running as 1111, and port
+          # 8282 will be excluded to support OPA health checks.
+          args: ["-p", "8000", "-u", "1111", "-w", "8282"]
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+            runAsNonRoot: false
+            runAsUser: 0
+      containers:
+        - name: app
+          image: amazon/aws-cli
+          #command: ['aws', 's3', 'ls','s3://opa-bundle-rest/bundles/']
+          command: [ "/bin/bash", "-c", "--" ]
+          args: [ "while true; do sleep 30; done;" ]
+          ports:
+            - containerPort: 8080
+        - name: envoy
+          image: envoyproxy/envoy:v1.26.3
+          volumeMounts:
+            - readOnly: true
+              mountPath: /config
+              name: proxy-config
+          args:
+            - "envoy"
+            - "--config-path"
+            - "/config/envoy.yaml"
+          env:
+            - name: ENVOY_UID
+              value: "1111"
+        - name: opa
+          image: openpolicyagent/opa:latest-envoy
+          args:
+            - "run"
+            - "--server"
+            - "--addr=localhost:8181"
+            - "--diagnostic-addr=0.0.0.0:8282"
+            - "--set=services.default.url=http://bundle-server"
+            - "--set=bundles.default.resource=bundle.tar.gz"
+            - "--set=plugins.envoy_ext_authz_grpc.addr=:9191"
+            - "--set=plugins.envoy_ext_authz_grpc.path=envoy/authz/allow"
+            - "--set=decision_logs.console=true"
+            - "--set=status.console=true"
+            - "--ignore=.*"
+          # livenessProbe:
+          #   httpGet:
+          #     path: /health?plugins
+          #     scheme: HTTP
+          #     port: 8282
+          #   initialDelaySeconds: 5
+          #   periodSeconds: 5
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health?plugins
+          #     scheme: HTTP
+          #     port: 8282
+          #   initialDelaySeconds: 1
+          #   periodSeconds: 3
+      volumes:
+        - name: proxy-config
+          configMap:
+            name: proxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cli-app
+spec:
+  selector:
+    app: cli-app
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080

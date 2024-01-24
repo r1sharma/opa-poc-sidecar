@@ -26,8 +26,6 @@ spec:
             - "--output"
             - "/opt/output/bundle.tar.gz"
           volumeMounts:
-            - name: index
-              mountPath: /opt/output/
             - name: policy
               mountPath: /opt/policy/
       containers:

@@ -23,7 +23,8 @@ spec:
           # Configure the iptables bootstrap script to redirect traffic to the
           # Envoy proxy on port 8000. Envoy will be running as 1111, and port
           # 8282 will be excluded to support OPA health checks.
-          args: ["-p", "8000", "-u", "1111", "-w", "8282"]
+          #args: ["-p", "8000", "-o", "443", "-u", "1111", "-w", "8282"]
+          args: ["-p", "8000", "-o", "443", "-u", "1111", "-w", "8282"]
           securityContext:
             capabilities:
               add:
@@ -32,12 +33,9 @@ spec:
             runAsUser: 0
       containers:
         - name: app
-          image: amazon/aws-cli
-          #command: ['aws', 's3', 'ls','s3://opa-bundle-rest/bundles/']
-          command: [ "/bin/bash", "-c", "--" ]
-          args: [ "while true; do sleep 30; done;" ]
+          image: 512552300345.dkr.ecr.us-west-2.amazonaws.com/demo-app:v2
           ports:
-            - containerPort: 8080
+            - containerPort: 5000
         - name: envoy
           image: envoyproxy/envoy:v1.26.3
           volumeMounts:
@@ -48,6 +46,8 @@ spec:
             - "envoy"
             - "--config-path"
             - "/config/envoy.yaml"
+            - "--component-log-level"
+            - "ext_authz:trace"
           env:
             - name: ENVOY_UID
               value: "1111"
@@ -65,6 +65,8 @@ spec:
             - "--set=decision_logs.console=true"
             - "--set=status.console=true"
             - "--ignore=.*"
+      imagePullSecrets:
+      - name: regcred
           # livenessProbe:
           #   httpGet:
           #     path: /health?plugins
@@ -94,4 +96,4 @@ spec:
   ports:
   - protocol: TCP
     port: 80
-    targetPort: 8080
+    targetPort: 5000
